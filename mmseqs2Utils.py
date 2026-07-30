@@ -1,6 +1,4 @@
-import subprocess
 import tempfile
-import os
 import pandas as pd
 
 from pathlib import Path
@@ -21,7 +19,8 @@ class MMseqsUtils(SeqUtils):
             Path(dbPath).mkdir(parents = True, exist_ok = True)
         if not Path(f"{dbPath}/{dbFileName}.dbtype").exists():
             print("Preparing database...")
-            subprocess.run([self.executable, "createdb", fastaPath, f"{dbPath}/{dbFileName}"], check=True)
+            db_cmd = [self.executable, "createdb", fastaPath, f"{dbPath}/{dbFileName}"]
+            self.runCmd(db_cmd)
         return f"{dbPath}/{dbFileName}"
 
     def runSearch(self, queryDB, targetDB, outputFile, threads = 2, maxSeqs = 1000, **kwargs):
@@ -41,18 +40,9 @@ class MMseqsUtils(SeqUtils):
                              "--format-output", ','.join(self.RESULT_COLUMNS) ]
             
             # Execute
-            try:
-                subprocess.run(searchCmd, capture_output=True, text=True, check=True)
-            except subprocess.CalledProcessError as e:
-                print(e.stderr)
-                raise
-            
+            self.runCmd(searchCmd)            
             print(f"Search completed with sensitivity = {sensitivity}")
-            try:
-                subprocess.run(convertCmd, capture_output=True, text=True, check=True)
-            except subprocess.CalledProcessError as e:
-                print(e.stderr)
-                raise
+            self.runCmd(convertCmd)
             
             df = pd.read_csv(outputFile, sep = "\t", names = self.RESULT_COLUMNS)
         return df

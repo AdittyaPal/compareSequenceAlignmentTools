@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+import subprocess
 
 class SeqUtils(ABC):
     
@@ -15,3 +16,10 @@ class SeqUtils(ABC):
     @abstractmethod
     def runSearch(self, queryDB, targetDB, outputFile):
         pass
+
+    def runCmd(self, cmd):
+        try:
+            subprocess.run(cmd, capture_output=True, text=True, check=True)
+        except subprocess.CalledProcessError as e:
+            print(e.stderr)
+            raise

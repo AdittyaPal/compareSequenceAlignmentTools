@@ -1,32 +1,53 @@
-import subprocess
-import os
+import pandas as pd
+
 from pathlib import Path
 
-def createDiamondDataBase(fastaPath, path, filename, threads = 2):
-    """
-        Wrapper to create databases for Diamond search
-    """
-    if Path(path).is_dir() == False:
-        Path(path).mkdir(parents = True, exist_ok = True)
-    if not Path(f"{path}/{filename}.dbtype").exists():
-        print("Preparing database...")
-        subprocess.run(["diamond", "makedb", "--in", fastaPath, "--db", f"{path}/{filename}", "--threads", str(threads)], check=True)
-    return f"{path}/{filename}"
+from seqUtils import SeqUtils
 
-def runDiamondSearch(queryPath, targetPath, outputFile, sensitivity = "sensitive", threads = 2, maxSeqs = 1000, evalue = 1e-3):
-    """
-        Wrapper for Diamond search
-    """
+class DiamondUtils(SeqUtils):
     
-    blastp_cmd = [
-        "diamond", "blastp", "--query", queryPath, "--db", str(targetPath), "--out", str(outputFile),
-        "--outfmt", "6",  "--threads", str(threads), f"--{sensitivity}", 
-        "--max-target-seqs", str(maxSeqs), "--evalue", str(evalue)
-    ]
+    def __init__(self):
+        super().__init__()
+        self.executable = "diamond"
+
+    def createDB(self, fastaPath, dbPath, dbFileName):
+        """
+            Wrapper to create databases for Diamond search
+        """
+        if Path(dbPath).is_dir() == False:
+            Path(dbPath).mkdir(parents = True, exist_ok = True)
+        if not Path(f"{dbPath}/{dbFileName}.dmnd").exists():
+            print("Preparing database...")
+            db_cmd = [self.executable, "makedb", "--in", fastaPath, "--db", f"{dbPath}/{dbFileName}"]
+            self.runCmd(db_cmd)
+        return f"{dbPath}/{dbFileName}"
+
+    def runSearch(self, queryDB, targetDB, outputFile, threads = 2, maxSeqs = 1000, **kwargs):
+        """
+            Wrapper for Diamond search
+        """
+
+        mode = kwargs.get("mode", "sensitive")
+        evalue = kwargs.get("evalue", 1e-3)
         
-    # execute
-    result = subprocess.run(blastp_cmd, capture_output=True, text=True, check=True)
-    if "search" in " ".join(blastp_cmd):
-        print(f"Search completed with sensitivity: {sensitivity}")
-                
-    return outputFile
+        blastp_cmd = [
+            self.executable, "blastp", "--query", queryDB, "--db", str(targetDB), "--out", str(outputFile),
+            "--outfmt", "6",  "--threads", str(threads), f"--{mode}", 
+            "--max-target-seqs", str(maxSeqs), "--evalue", str(evalue)
+        ]
+            
+        # execute
+        self.runCmd(blastp_cmd)
+        print(f"Search completed in the mode: {mode}")
+
+        df = pd.read_csv(outputFile, sep = "\t")
+        df.rename(columns = {"bitscore": "bits",
+                            "qseqid": "query",
+                            "sseqid": "target",
+                            "length": "alnlen",
+                            "sstart": "tstart",
+                            "send": "tend",
+                            "slen": "tlen"
+                        }, inplace=True)
+                    
+        return df
